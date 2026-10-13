@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: estufa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./data/estufa.db
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=false
+      - FRONTEND_DIR=../frontend
+      - SERIAL_PORT=/dev/ttyUSB0
+      - BAUD_RATE=115200
+      - SIMULATE_SERIAL=false
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend:/app  # Para desenvolvimento com reload
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Opcional: Nginx reverse proxy para produção
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: estufa-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
+
+volumes:
+  estufa_data:

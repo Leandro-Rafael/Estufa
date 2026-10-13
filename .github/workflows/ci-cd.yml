@@ -1,0 +1,181 @@
+name: CI/CD Pipeline - Estufa Monitor
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # ==================== BACKEND TESTS ====================
+  backend-test:
+    name: Backend - Test & Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx
+      
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short --cov=./ --cov-report=xml
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+
+  # ==================== FRONTEND TESTS ====================
+  frontend-test:
+    name: Frontend - Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run linting
+        run: npm run lint
+      
+      - name: Run tests
+        run: npm run test
+      
+      - name: Build production
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ==================== DOCKER BUILD ====================
+  docker-build:
+    name: Docker - Build Images
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: estufa-monitor/backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Build frontend image (nginx)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: estufa-monitor/frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==================== DEPLOY FRONTEND (NETLIFY) ====================
+  deploy-frontend:
+    name: Deploy Frontend (Netlify)
+    runs-on: ubuntu-latest
+    needs: [frontend-test]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+      
+      - name: Deploy to Netlify
+        uses: nwtgck/actions-netlify@v3.0
+        with:
+          publish-dir: 'frontend/dist'
+          production-branch: main
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          deploy-message: "Deploy frontend from commit ${{ github.sha }}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+
+  # ==================== DEPLOY BACKEND (RAILWAY/RENDER) ====================
+  deploy-backend:
+    name: Deploy Backend (Container)
+    runs-on: ubuntu-latest
+    needs: [backend-test, docker-build]
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Deploy to Railway
+        # Exemplo para Railway - ajustar conforme provedor
+        run: |
+          echo "Deploy backend to container platform"
+          # railway up --service estufa-backend
+          # OU render deploy --service estufa-backend
+          # OU fly deploy --app estufa-backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          # RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          # FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ==================== NOTIFICATION ====================
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [deploy-frontend, deploy-backend]
+    if: always()
+    
+    steps:
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed! Check GitHub Actions for details."
+          # Add Slack/Discord/Email notification here
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"Estufa Monitor deployment failed!"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}

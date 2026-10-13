@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroFlora OS | Estufa Inteligente & Telemetria IoT</title>
+  <meta name="description" content="Sistema profissional de monitoramento em tempo real, automação climática e irrigação de estufas com Arduino/ESP32.">
+  <!-- Favicon SVG -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
+  
+  <!-- Fontes de Design: Plus Jakarta Sans & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  
+  <!-- Estilos Customizados -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="theme-obsidian">
+
+  <!-- Background Ambient Mesh -->
+  <div class="ambient-glow glow-top-left"></div>
+  <div class="ambient-glow glow-bottom-right"></div>
+
+  <!-- Header / Top Navigation -->
+  <header class="app-header">
+    <div class="header-inner">
+      
+      <!-- Brand & Status -->
+      <div class="brand-group">
+        <div class="brand-badge">
+          <span class="brand-leaf">🌿</span>
+          <span class="brand-pulse"></span>
+        </div>
+        <div class="brand-text">
+          <div class="brand-name-row">
+            <span class="brand-name">AeroFlora</span>
+            <span class="brand-version-chip">v1.2 PRO</span>
+          </div>
+          <span class="brand-tagline">Microclima & Automação IoT</span>
+        </div>
+      </div>
+
+      <!-- Telemetria & Conexões no Header -->
+      <div class="telemetry-bar">
+        
+        <!-- Status Hardware / Serial -->
+        <div class="telemetry-pill" id="pill-hardware" title="Clique para ver diagnóstico de porta serial">
+          <span class="pill-indicator dot-offline" id="dot-hardware"></span>
+          <div class="pill-info">
+            <span class="pill-title">HARDWARE</span>
+            <span class="pill-value" id="label-hardware">Offline</span>
+          </div>
+        </div>
+
+        <!-- Status WebSocket -->
+        <div class="telemetry-pill" id="pill-ws">
+          <span class="pill-indicator dot-offline" id="dot-ws"></span>
+          <div class="pill-info">
+            <span class="pill-title">TELEMETRIA</span>
+            <span class="pill-value" id="label-ws">Conectando</span>
+          </div>
+        </div>
+
+        <!-- Botão Rápido de Console Serial -->
+        <button class="btn-console-pill" id="btn-toggle-terminal" title="Abrir Terminal Serial em Tempo Real">
+          <span class="console-icon">⌨️</span>
+          <span class="console-label">Console Serial</span>
+          <span class="console-badge" id="badge-packets-count">0 pkt</span>
+        </button>
+
+      </div>
+
+    </div>
+
+    <!-- Navegação em Abas Flutuantes -->
+    <nav class="nav-bar">
+      <div class="nav-container">
+        <div class="nav-tabs-wrapper">
+          <button class="nav-tab active" data-tab="tab-dashboard">
+            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="nav-tab" data-tab="tab-historico">
+            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            <span>Histórico</span>
+          </button>
+          <button class="nav-tab" data-tab="tab-configuracoes">
+            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Parâmetros</span>
+          </button>
+          <button class="nav-tab" data-tab="tab-irrigacao">
+            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+            <span>Irrigação</span>
+          </button>
+          <button class="nav-tab" data-tab="tab-dispositivos">
+            <svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 18h12M6 6h12M9 2v4M15 2v4M9 18v4M15 18v4"/></svg>
+            <span>Hardware & Serial</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Painel Principal -->
+  <main class="main-wrapper">
+
+    <!-- ==================== BANNER DE ALERTA DINÂMICO ==================== -->
+    <div id="banner-alerta-topo" class="alert-banner-lux hidden">
+      <div class="alert-banner-left">
+        <span class="alert-pulse-icon">⚠️</span>
+        <div>
+          <strong id="banner-alerta-titulo">Condição Anômala Detectada</strong>
+          <p id="banner-alerta-texto">Parâmetros fora da faixa ideal de cultivo.</p>
+        </div>
+      </div>
+      <div class="alert-banner-right">
+        <button class="btn-xs btn-outline" onclick="abrirConfiguracoesRapidas()">Ajustar Faixa</button>
+        <button class="btn-close-banner" onclick="fecharBannerAlerta()">✕</button>
+      </div>
+    </div>
+
+    <!-- ==================== ABA 1: DASHBOARD ==================== -->
+    <section id="tab-dashboard" class="tab-panel active">
+      
+      <!-- HERO RESUMO AGRONÔMICO (VPD, STATUS GERAL & TIMESTAMP) -->
+      <div class="greenhouse-hero-card">
+        <div class="hero-col-left">
+          <div class="hero-status-pill">
+            <span class="live-ring"></span>
+            <span class="hero-status-text" id="hero-microclima-status">Microclima Estável & Controlado</span>
+          </div>
+          <h2 class="hero-heading">Estufa Principal — Cultivo Hidropônico/Solo</h2>
+          <div class="hero-meta-row">
+            <span>Último sync: <strong class="mono" id="dash-ultima-leitura">Aguardando dados...</strong></span>
+            <span class="dot-separator">•</span>
+            <span id="dash-tempo-relativo" class="text-emerald">conectando...</span>
+            <span class="dot-separator">•</span>
+            <span id="hero-modo-tag" class="tag-pill">Modo: Monitoramento</span>
+          </div>
+        </div>
+
+        <div class="hero-col-right">
+          <!-- CARD DE VPD (DÉFICIT DE PRESSÃO DE VAPOR) -->
+          <div class="vpd-widget" title="VPD (Déficit de Pressão de Vapor): Métricas de transpiração ideal para a cultura">
+            <div class="vpd-header">
+              <span class="vpd-label">DÉFICIT DE VAPOR (VPD)</span>
+              <span class="vpd-badge" id="badge-vpd">Transpiração Ideal</span>
+            </div>
+            <div class="vpd-value-row">
+              <span class="vpd-number mono" id="val-vpd">0.95</span>
+              <span class="vpd-unit">kPa</span>
+            </div>
+            <span class="vpd-hint">Faixa ótima de absorção foliar</span>
+          </div>
+
+          <!-- AÇÕES RÁPIDAS -->
+          <div class="hero-actions">
+            <button class="btn btn-emerald" id="btn-dash-irrigar-rapido">
+              <span class="btn-icon">💧</span> Irrigar Agora (10s)
+            </button>
+            <button class="btn btn-glass" id="btn-dash-modal-config">
+              <span class="btn-icon">⚙️</span> Faixas
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS DE TELEMETRIA DOS SENSORES (LAYOUT BESPOKE) -->
+      <div class="metrics-grid">
+        
+        <!-- CARD 1: TEMPERATURA -->
+        <div class="metric-card" id="card-temperatura">
+          <div class="card-glass-glow"></div>
+          <div class="metric-card-top">
+            <div class="metric-label-group">
+              <div class="metric-avatar avatar-temp">🌡️</div>
+              <div>
+                <span class="metric-category">AMBIENTE</span>
+                <h3 class="metric-name">Temperatura</h3>
+              </div>
+            </div>
+            <span class="status-pill pill-gray" id="badge-temperatura">Estável</span>
+          </div>
+
+          <div class="metric-display">
+            <div class="metric-value-wrap">
+              <span class="metric-value mono" id="val-temperatura">--.-</span>
+              <span class="metric-unit">°C</span>
+            </div>
+            <div class="metric-trend" id="trend-temperatura">
+              <span class="trend-icon">→</span>
+              <span class="trend-text">estável</span>
+            </div>
+          </div>
+
+          <!-- Medidor Visual de Faixa com Marcadores de Limite -->
+          <div class="gauge-slider-wrap">
+            <div class="gauge-slider-track">
+              <div class="gauge-slider-fill" id="bar-temperatura" style="width: 50%;"></div>
+              <div class="gauge-target-zone" id="zone-temperatura" style="left: 30%; width: 40%;"></div>
+            </div>
+            <div class="gauge-labels">
+              <span id="hint-temp-min">20°C</span>
+              <span class="gauge-center-label" id="hint-temperatura">Ideal: 20 a 28°C</span>
+              <span id="hint-temp-max">28°C</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 2: UMIDADE DO AR -->
+        <div class="metric-card" id="card-umidade-ar">
+          <div class="card-glass-glow"></div>
+          <div class="metric-card-top">
+            <div class="metric-label-group">
+              <div class="metric-avatar avatar-air">💨</div>
+              <div>
+                <span class="metric-category">ATMOSFERA</span>
+                <h3 class="metric-name">Umidade do Ar</h3>
+              </div>
+            </div>
+            <span class="status-pill pill-gray" id="badge-umidade-ar">Estável</span>
+          </div>
+
+          <div class="metric-display">
+            <div class="metric-value-wrap">
+              <span class="metric-value mono" id="val-umidade-ar">--.-</span>
+              <span class="metric-unit">%</span>
+            </div>
+            <div class="metric-trend" id="trend-umidade-ar">
+              <span class="trend-icon">→</span>
+              <span class="trend-text">estável</span>
+            </div>
+          </div>
+
+          <div class="gauge-slider-wrap">
+            <div class="gauge-slider-track">
+              <div class="gauge-slider-fill" id="bar-umidade-ar" style="width: 60%;"></div>
+              <div class="gauge-target-zone" id="zone-umidade-ar" style="left: 50%; width: 20%;"></div>
+            </div>
+            <div class="gauge-labels">
+              <span id="hint-uar-min">50%</span>
+              <span class="gauge-center-label" id="hint-umidade-ar">Ideal: 50 a 70%</span>
+              <span id="hint-uar-max">70%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 3: UMIDADE DO SOLO -->
+        <div class="metric-card" id="card-umidade-solo">
+          <div class="card-glass-glow"></div>
+          <div class="metric-card-top">
+            <div class="metric-label-group">
+              <div class="metric-avatar avatar-soil">🌱</div>
+              <div>
+                <span class="metric-category">SUBSTRATO</span>
+                <h3 class="metric-name">Umidade do Solo</h3>
+              </div>
+            </div>
+            <span class="status-pill pill-gray" id="badge-umidade-solo">Estável</span>
+          </div>
+
+          <div class="metric-display">
+            <div class="metric-value-wrap">
+              <span class="metric-value mono" id="val-umidade-solo">--.-</span>
+              <span class="metric-unit">%</span>
+            </div>
+            <div class="metric-trend" id="trend-umidade-solo">
+              <span class="trend-icon">→</span>
+              <span class="trend-text">estável</span>
+            </div>
+          </div>
+
+          <div class="gauge-slider-wrap">
+            <div class="gauge-slider-track">
+              <div class="gauge-slider-fill" id="bar-umidade-solo" style="width: 55%;"></div>
+              <div class="gauge-target-zone" id="zone-umidade-solo" style="left: 40%; width: 30%;"></div>
+            </div>
+            <div class="gauge-labels">
+              <span id="hint-usolo-min">40%</span>
+              <span class="gauge-center-label" id="hint-umidade-solo">Ideal: 40 a 70%</span>
+              <span id="hint-usolo-max">70%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- CARD 4: LUMINOSIDADE -->
+        <div class="metric-card" id="card-luminosidade">
+          <div class="card-glass-glow"></div>
+          <div class="metric-card-top">
+            <div class="metric-label-group">
+              <div class="metric-avatar avatar-light">☀️</div>
+              <div>
+                <span class="metric-category">FOTOPERÍODO</span>
+                <h3 class="metric-name">Luminosidade</h3>
+              </div>
+            </div>
+            <span class="status-pill pill-gray" id="badge-luminosidade">Estável</span>
+          </div>
+
+          <div class="metric-display">
+            <div class="metric-value-wrap">
+              <span class="metric-value mono" id="val-luminosidade">---</span>
+              <span class="metric-unit">lux</span>
+            </div>
+            <div class="metric-trend" id="trend-luminosidade">
+              <span class="trend-icon">→</span>
+              <span class="trend-text">estável</span>
+            </div>
+          </div>
+
+          <div class="gauge-slider-wrap">
+            <div class="gauge-slider-track">
+              <div class="gauge-slider-fill" id="bar-luminosidade" style="width: 65%;"></div>
+              <div class="gauge-target-zone" id="zone-luminosidade" style="left: 40%; width: 45%;"></div>
+            </div>
+            <div class="gauge-labels">
+              <span id="hint-lum-min">400 lx</span>
+              <span class="gauge-center-label" id="hint-luminosidade">Ideal: 400 a 850 lx</span>
+              <span id="hint-lum-max">850 lx</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SEÇÃO INTERMEDIÁRIA: GRÁFICO AO VIVO & PAINEL DE CONTROLE LATERAL -->
+      <div class="analytics-layout">
+        
+        <!-- CARD DO GRÁFICO PRINCIPAL COM GRADIENTES SUAVES -->
+        <div class="panel-card chart-panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-pretitle">SÉRIE TEMPORAL CONTÍNUA</div>
+              <h3 class="panel-title">Telemetria em Tempo Real</h3>
+            </div>
+            <div class="chart-header-actions">
+              <div class="live-indicator-tag">
+                <span class="live-dot-pulse"></span>
+                <span>FLUXO AO VIVO</span>
+              </div>
+              <div class="chart-filter-pills">
+                <button class="pill-btn active" data-chart-view="all">Todos</button>
+                <button class="pill-btn" data-chart-view="clima">Clima</button>
+                <button class="pill-btn" data-chart-view="solo">Solo</button>
+              </div>
+            </div>
+          </div>
+          <div class="chart-canvas-wrap">
+            <canvas id="grafico-tempo-real"></canvas>
+          </div>
+        </div>
+
+        <!-- PAINEL LATERAL: STATUS DA BOMBA E FEED DE ALERTAS -->
+        <div class="side-widgets-col">
+          
+          <!-- WIDGET 1: STATUS DA BOMBA / ATUADOR -->
+          <div class="panel-card widget-pump">
+            <div class="panel-header-compact">
+              <span class="widget-label">ATUADOR DE IRRIGAÇÃO</span>
+              <span class="status-pill pill-gray" id="dash-badge-irrigacao">Standby</span>
+            </div>
+
+            <div class="pump-visual-container">
+              <div class="pump-circle" id="pump-circle-anim">
+                <span class="pump-icon">💧</span>
+                <div class="pump-waves"></div>
+              </div>
+              <div class="pump-info-text">
+                <h4 id="pump-status-title">Bomba Desligada</h4>
+                <p id="pump-status-desc">Aguardando comando manual ou limiar automático</p>
+              </div>
+            </div>
+
+            <!-- Contador de Tempo Ativo (Visível durante irrigação) -->
+            <div class="pump-active-countdown hidden" id="box-acao-irrigando">
+              <div class="countdown-bar">
+                <div class="countdown-progress" id="bar-tempo-irrigando"></div>
+              </div>
+              <div class="countdown-text-row">
+                <span>Desligamento em:</span>
+                <strong class="mono" id="timer-irrigacao-segundos">0s</strong>
+              </div>
+              <button class="btn btn-danger btn-block btn-sm mt-2" id="btn-dash-parar-irrigacao">
+                ⏹️ Interromper Agora
+              </button>
+            </div>
+
+            <div class="widget-details-list">
+              <div class="detail-row">
+                <span>Modo Operacional:</span>
+                <strong class="mono" id="dash-irrigacao-modo">MANUAL</strong>
+              </div>
+              <div class="detail-row">
+                <span>Gatilho Automático:</span>
+                <strong class="mono" id="dash-irrigacao-trigger-info">Solo &lt; 35%</strong>
+              </div>
+              <div class="detail-row">
+                <span>Auto-Irrigação:</span>
+                <strong id="dash-irrigacao-auto-status" class="text-muted">Desativada</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- WIDGET 2: FEED DE ALERTAS RECENTES -->
+          <div class="panel-card widget-alerts">
+            <div class="panel-header-compact">
+              <div class="alerts-title-row">
+                <span class="widget-label">EVENTOS & ALERTAS</span>
+                <span class="badge-counter" id="count-alertas-hoje">0</span>
+              </div>
+              <button class="btn-text-action" onclick="limparHistoricoAlertas()">Limpar</button>
+            </div>
+
+            <div class="alerts-scroll-view" id="lista-alertas-dashboard">
+              <div class="empty-alerts-state">
+                <span class="empty-icon">✓</span>
+                <p>Nenhuma violação de limites registrada. Todos os parâmetros nominais.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ==================== ABA 2: HISTÓRICO ==================== -->
+    <section id="tab-historico" class="tab-panel">
+      
+      <div class="section-title-bar">
+        <div>
+          <span class="section-kicker">ANÁLISE DE DADOS</span>
+          <h2>Histórico & Tendências Climáticas</h2>
+        </div>
+        <button class="btn btn-glass" id="btn-exportar-csv">
+          📥 Exportar Relatório CSV
+        </button>
+      </div>
+
+      <!-- Barra de Filtros Avançados -->
+      <div class="panel-card filter-toolbar">
+        <div class="filter-controls-group">
+          
+          <div class="filter-item">
+            <label>Intervalo Pré-definido:</label>
+            <div class="segmented-control">
+              <button class="seg-btn btn-periodo active" data-periodo="1h">1h</button>
+              <button class="seg-btn btn-periodo" data-periodo="6h">6h</button>
+              <button class="seg-btn btn-periodo" data-periodo="24h">24h</button>
+              <button class="seg-btn btn-periodo" data-periodo="7d">7 dias</button>
+            </div>
+          </div>
+
+          <div class="filter-item">
+            <label for="filtro-metrica">Métrica em Destaque:</label>
+            <select id="filtro-metrica" class="form-select-lux">
+              <option value="">Todas as Variáveis</option>
+              <option value="temperatura">Temperatura (°C)</option>
+              <option value="umidade_ar">Umidade do Ar (%)</option>
+              <option value="umidade_solo">Umidade do Solo (%)</option>
+              <option value="luminosidade">Luminosidade (lux)</option>
+            </select>
+          </div>
+
+          <div class="filter-item">
+            <label for="filtro-limite">Resolução (Pontos):</label>
+            <select id="filtro-limite" class="form-select-lux">
+              <option value="100">100 registros</option>
+              <option value="200" selected>200 registros</option>
+              <option value="500">500 registros</option>
+              <option value="1000">1000 registros</option>
+            </select>
+          </div>
+
+          <div class="filter-item filter-btn-col">
+            <button class="btn btn-emerald btn-block" id="btn-aplicar-filtro-historico">
+              🔍 Filtrar
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Gráfico Histórico Ampliado -->
+      <div class="panel-card mt-3">
+        <div class="panel-header">
+          <div>
+            <h3 class="panel-title">Curva Histórica Consolidada</h3>
+            <span class="panel-subtitle" id="historico-pontos-info">Carregando telemetria...</span>
+          </div>
+        </div>
+        <div class="chart-canvas-wrap" style="height: 380px;">
+          <canvas id="grafico-historico"></canvas>
+        </div>
+      </div>
+
+      <!-- Tabela de Registros com Estilo Luxo -->
+      <div class="panel-card mt-3">
+        <div class="panel-header">
+          <h3 class="panel-title">Registros Detalhados dos Sensores</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table-lux" id="tabela-historico">
+            <thead>
+              <tr>
+                <th>TIMESTAMP</th>
+                <th>TEMPERATURA</th>
+                <th>UMIDADE AR</th>
+                <th>UMIDADE SOLO</th>
+                <th>LUMINOSIDADE</th>
+                <th>CO₂</th>
+                <th>STATUS</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-historico-corpo">
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">Carregando dados históricos...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== ABA 3: CONFIGURAÇÕES / PARÂMETROS ==================== -->
+    <section id="tab-configuracoes" class="tab-panel">
+      
+      <div class="section-title-bar">
+        <div>
+          <span class="section-kicker">CALIBRAÇÃO DE MICROCLIMA</span>
+          <h2>Faixas Ideais e Regras de Limite</h2>
+          <p class="text-muted">Ajuste os parâmetros biológicos sem necessidade de alterar o firmware do Arduino.</p>
+        </div>
+        <div class="title-bar-actions">
+          <button class="btn btn-outline" id="btn-restaurar-configs-padrao">
+            ↩️ Restaurar Padrões
+          </button>
+        </div>
+      </div>
+
+      <!-- PRESETS BIOLÓGICOS PRONTOS -->
+      <div class="presets-card">
+        <span class="preset-label">🌱 PRESETS RÁPIDOS POR CULTURA:</span>
+        <div class="preset-pills">
+          <button type="button" class="preset-btn" onclick="aplicarPreset('hortalicas')">🥬 Hortaliças & Alface</button>
+          <button type="button" class="preset-btn" onclick="aplicarPreset('tomate')">🍅 Tomateiro & Solanáceas</button>
+          <button type="button" class="preset-btn" onclick="aplicarPreset('orquideas')">🌸 Orquídeas & Flores</button>
+          <button type="button" class="preset-btn" onclick="aplicarPreset('suculentas')">🌵 Suculentas & Cactos</button>
+        </div>
+      </div>
+
+      <form id="form-configuracoes">
+        
+        <div class="settings-cards-grid">
+          
+          <!-- CARD 1: TEMPERATURA -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-icon">🌡️</span>
+              <div>
+                <h4>Temperatura Ambiente (°C)</h4>
+                <p>Faixa ideal para desenvolvimento foliar e floração</p>
+              </div>
+            </div>
+            
+            <div class="settings-inputs-grid">
+              <div class="input-block">
+                <label for="cfg_temp_min">Mínima Ideal (°C)</label>
+                <input type="number" id="cfg_temp_min" class="input-lux" step="0.5" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_temp_max">Máxima Ideal (°C)</label>
+                <input type="number" id="cfg_temp_max" class="input-lux" step="0.5" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_temp_tol">Tolerância (±°C)</label>
+                <input type="number" id="cfg_temp_tol" class="input-lux" step="0.5" required>
+              </div>
+            </div>
+            <div class="rule-visual-indicator">
+              <span class="rule-tag tag-yellow">Abaixo do mín - tol: Vermelho</span>
+              <span class="rule-tag tag-green">Entre mín e máx: Verde</span>
+            </div>
+          </div>
+
+          <!-- CARD 2: UMIDADE DO AR -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-icon">💨</span>
+              <div>
+                <h4>Umidade do Ar (%)</h4>
+                <p>Influencia a taxa de transpiração estomática</p>
+              </div>
+            </div>
+            
+            <div class="settings-inputs-grid">
+              <div class="input-block">
+                <label for="cfg_uar_min">Mínima Ideal (%)</label>
+                <input type="number" id="cfg_uar_min" class="input-lux" min="0" max="100" step="1" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_uar_max">Máxima Ideal (%)</label>
+                <input type="number" id="cfg_uar_max" class="input-lux" min="0" max="100" step="1" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_uar_tol">Tolerância (±%)</label>
+                <input type="number" id="cfg_uar_tol" class="input-lux" min="0" max="50" step="1" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 3: UMIDADE DO SOLO -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-icon">🌱</span>
+              <div>
+                <h4>Umidade do Solo (%)</h4>
+                <p>Disponibilidade hídrica direta para a zona radicular</p>
+              </div>
+            </div>
+            
+            <div class="settings-inputs-grid">
+              <div class="input-block">
+                <label for="cfg_usolo_min">Mínima Ideal (%)</label>
+                <input type="number" id="cfg_usolo_min" class="input-lux" min="0" max="100" step="1" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_usolo_max">Máxima Ideal (%)</label>
+                <input type="number" id="cfg_usolo_max" class="input-lux" min="0" max="100" step="1" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_usolo_tol">Tolerância (±%)</label>
+                <input type="number" id="cfg_usolo_tol" class="input-lux" min="0" max="50" step="1" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 4: LUMINOSIDADE -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-icon">☀️</span>
+              <div>
+                <h4>Luminosidade (lux)</h4>
+                <p>Taxa de radiação para fotossíntese</p>
+              </div>
+            </div>
+            
+            <div class="settings-inputs-grid">
+              <div class="input-block">
+                <label for="cfg_lum_min">Mínima Ideal (lux)</label>
+                <input type="number" id="cfg_lum_min" class="input-lux" min="0" max="5000" step="10" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_lum_max">Máxima Ideal (lux)</label>
+                <input type="number" id="cfg_lum_max" class="input-lux" min="0" max="5000" step="10" required>
+              </div>
+              <div class="input-block">
+                <label for="cfg_lum_tol">Tolerância (±)</label>
+                <input type="number" id="cfg_lum_tol" class="input-lux" min="0" max="1000" step="10" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD 5: FREQUÊNCIA E NOTIFICAÇÕES -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <span class="settings-icon">⚡</span>
+              <div>
+                <h4>Preferências de Amostragem</h4>
+                <p>Frequência da coleta e alertas</p>
+              </div>
+            </div>
+
+            <div class="input-block">
+              <label for="cfg_intervalo">Intervalo de Telemetria (segundos)</label>
+              <input type="number" id="cfg_intervalo" class="input-lux" min="1" max="3600" step="1" required>
+            </div>
+
+            <div class="toggle-lux-row mt-3">
+              <label class="switch-lux">
+                <input type="checkbox" id="cfg_alertas_ativos">
+                <span class="slider-lux"></span>
+              </label>
+              <div>
+                <strong>Habilitar Notificações e Auditoria de Alertas</strong>
+                <p class="text-muted text-xs">Registra anomalias no banco e exibe banners em tempo real</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="form-save-footer mt-4">
+          <button type="submit" class="btn btn-emerald btn-lg" id="btn-salvar-configuracoes">
+            💾 Salvar Parâmetros no Banco SQLite
+          </button>
+        </div>
+
+      </form>
+
+    </section>
+
+    <!-- ==================== ABA 4: IRRIGAÇÃO ==================== -->
+    <section id="tab-irrigacao" class="tab-panel">
+      
+      <div class="section-title-bar">
+        <div>
+          <span class="section-kicker">ESTAÇÃO DE BOMBEAMENTO</span>
+          <h2>Controle & Automação de Irrigação</h2>
+          <p class="text-muted">Acionamento manual protegido e motor de inferência automática com salvaguardas.</p>
+        </div>
+      </div>
+
+      <div class="irrigacao-station-grid">
+        
+        <!-- ESTAÇÃO MANUAL -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">💧 Acionamento Manual com Temporizador</h3>
+              <p class="panel-subtitle">Comando serial imediato com desarme automático</p>
+            </div>
+            <span class="status-pill pill-gray" id="irrigacao-badge-status-manual">Desligada</span>
+          </div>
+
+          <div class="irrig-action-card">
+            <label class="input-label">Selecione a Duração do Ciclo de Água:</label>
+            <div class="duration-pills-row">
+              <button type="button" class="pill-duracao active" data-duracao="5">5 seg</button>
+              <button type="button" class="pill-duracao" data-duracao="10">10 seg</button>
+              <button type="button" class="pill-duracao" data-duracao="15">15 seg</button>
+              <button type="button" class="pill-duracao" data-duracao="20">20 seg</button>
+              <button type="button" class="pill-duracao" data-duracao="30">30 seg</button>
+            </div>
+
+            <div class="custom-sec-wrap mt-2">
+              <input type="number" id="irrigacao-duracao-custom" class="input-lux" value="10" min="1" max="120" placeholder="Segundos específicos">
+            </div>
+
+            <div class="irrig-btns-row mt-3">
+              <button class="btn btn-emerald btn-lg flex-1" id="btn-iniciar-irrigacao-manual">
+                ▶️ Disparar Irrigação Manual
+              </button>
+              <button class="btn btn-danger btn-lg flex-1" id="btn-parar-irrigacao-imediato">
+                ⏹️ Interromper Bomba
+              </button>
+            </div>
+
+            <div id="status-irrigando-box" class="active-pump-banner hidden mt-3">
+              <span class="rotating-pump-icon">💧</span>
+              <div>
+                <strong>Bomba d'água em operação contínua</strong>
+                <p>Tempo restante antes do desarme: <span class="mono text-emerald" id="span-tempo-irrigando">0</span>s</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- REGRAS DA AUTOMAÇÃO AUTÔNOMA -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">🤖 Automação Hídrica Autônoma</h3>
+              <p class="panel-subtitle">Inferência baseada no sensor de solo com travas anti-inundação</p>
+            </div>
+          </div>
+
+          <div class="toggle-lux-row mb-3">
+            <label class="switch-lux">
+              <input type="checkbox" id="cfg_irrigacao_automatica">
+              <span class="slider-lux"></span>
+            </label>
+            <div>
+              <strong>Habilitar Disparo Automático</strong>
+              <p class="text-muted text-xs">Desativado por padrão para proteção das mudas</p>
+            </div>
+          </div>
+
+          <div class="settings-inputs-grid">
+            <div class="input-block">
+              <label for="cfg_irrigacao_solo_min">Disparar se Solo &lt; (%)</label>
+              <input type="number" id="cfg_irrigacao_solo_min" class="input-lux" min="5" max="90" step="1">
+            </div>
+            <div class="input-block">
+              <label for="cfg_irrigacao_solo_max">Interromper em Solo &gt;= (%)</label>
+              <input type="number" id="cfg_irrigacao_solo_max" class="input-lux" min="10" max="95" step="1">
+            </div>
+            <div class="input-block">
+              <label for="cfg_irrigacao_tempo_max">Tempo Máx. Segurança (seg)</label>
+              <input type="number" id="cfg_irrigacao_tempo_max" class="input-lux" min="5" max="180" step="1">
+            </div>
+            <div class="input-block">
+              <label for="cfg_irrigacao_intervalo_espera">Cooldown Entre Ciclos (seg)</label>
+              <input type="number" id="cfg_irrigacao_intervalo_espera" class="input-lux" min="10" max="86400" step="10">
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <button class="btn btn-outline btn-block" id="btn-salvar-regras-irrigacao">
+              💾 Salvar Parâmetros de Automação
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- HISTÓRICO DE ACIONAMENTOS -->
+      <div class="panel-card mt-3">
+        <div class="panel-header">
+          <h3 class="panel-title">Auditoria e Histórico de Acionamentos</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table-lux">
+            <thead>
+              <tr>
+                <th>INÍCIO</th>
+                <th>DURAÇÃO</th>
+                <th>MODO</th>
+                <th>MOTIVO / GATILHO</th>
+                <th>SOLO INICIAL</th>
+                <th>SOLO FINAL</th>
+                <th>RESULTADO</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-irrigacoes-corpo">
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">Nenhum acionamento auditado até o momento.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ==================== ABA 5: HARDWARE, PORTA SERIAL & CONSOLE ==================== -->
+    <section id="tab-dispositivos" class="tab-panel">
+      
+      <div class="section-title-bar">
+        <div>
+          <span class="section-kicker">CAMADA DE HARDWARE</span>
+          <h2>Conexão Serial USB & Diagnóstico Arduino</h2>
+          <p class="text-muted">Selecione portas em tempo real, depure pacotes e envie comandos diretos.</p>
+        </div>
+        <div class="title-bar-actions">
+          <button class="btn btn-emerald" id="btn-reconectar-serial">
+            🔄 Auto-Detectar & Reconectar
+          </button>
+        </div>
+      </div>
+
+      <div class="devices-dashboard-grid">
+        
+        <!-- CARD SELEÇÃO DE PORTA SERIAL AO VIVO -->
+        <div class="panel-card">
+          <div class="panel-header">
+            <div>
+              <h3 class="panel-title">Portas USB / Seriais Conectadas</h3>
+              <p class="panel-subtitle">Selecione e conecte sem precisar reiniciar o servidor</p>
+            </div>
+            <span class="status-pill pill-gray" id="badge-dispositivo-status">Desconectado</span>
+          </div>
+
+          <div class="port-selector-box">
+            <label class="input-label">Dispositivos Detectados no Computador:</label>
+            <div class="port-input-row">
+              <select id="select-portas-seriais" class="form-select-lux flex-1">
+                <option value="">Buscando portas USB...</option>
+              </select>
+              <select id="select-baudrate" class="form-select-lux" style="max-width: 130px;">
+                <option value="9600" selected>9600 baud</option>
+                <option value="115200">115200 baud</option>
+                <option value="19200">19200 baud</option>
+              </select>
+              <button class="btn btn-emerald" id="btn-conectar-porta-selecionada">
+                Conectar
+              </button>
+            </div>
+            <div class="port-details-sub" id="port-details-desc">
+              Aguardando seleção de porta...
+            </div>
+          </div>
+
+          <div class="diag-specs-list mt-3">
+            <div class="spec-item">
+              <span class="spec-label">Porta Ativa:</span>
+              <strong class="mono" id="disp-porta">COM3</strong>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Velocidade (Baudrate):</span>
+              <strong class="mono" id="disp-baud">9600 bps</strong>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Modo Operacional:</span>
+              <strong class="mono" id="disp-simulacao">Físico</strong>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Pacotes Recebidos (RX):</span>
+              <strong class="mono text-emerald" id="disp-total-leituras">0</strong>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Falhas / Quedas de Conexão:</span>
+              <strong class="mono" id="disp-erros">0</strong>
+            </div>
+            <div class="spec-item">
+              <span class="spec-label">Tempo Ativo (Uptime):</span>
+              <strong class="mono" id="disp-uptime">0s</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONSOLE SERIAL AO VIVO (TERMINAL PROFISSIONAL) -->
+        <div class="panel-card console-card">
+          <div class="panel-header">
+            <div class="console-title-group">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <h3 class="panel-title ml-2">Terminal de Telemetria Serial (TX / RX)</h3>
+            </div>
+            <div class="console-actions">
+              <button class="btn-xs btn-glass" id="btn-limpar-console">Limpar</button>
+              <button class="btn-xs btn-glass active" id="btn-toggle-autoscroll">Auto-scroll</button>
+            </div>
+          </div>
+
+          <div class="terminal-window" id="terminal-serial-logs">
+            <div class="term-line term-info">[SYSTEM] Console de telemetria inicializado. Aguardando pacotes...</div>
+          </div>
+
+          <!-- Input de Envio de Comando Manual -->
+          <div class="terminal-input-bar">
+            <span class="term-prompt">&gt;</span>
+            <input type="text" id="input-comando-serial-manual" class="term-input" placeholder='Digite comando JSON (ex: {"acao":"ping"} ou {"acao":"irrigar","duracao":5})'>
+            <button class="btn btn-emerald btn-sm" id="btn-enviar-comando-serial">Enviar TX</button>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Container de Toasts de Notificação -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Scripts Modulares -->
+  <script src="js/websocket.js"></script>
+  <script src="js/graficos.js"></script>
+  <script src="js/configuracoes.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
