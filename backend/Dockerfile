@@ -34,7 +34,7 @@ ENV PATH=/home/appuser/.local/bin:$PATH
 # Copy application code
 COPY --chown=appuser:appuser . .
 
-# Create data directory for SQLite
+# Create data directory for SQLite (fallback)
 RUN mkdir -p /app/data && chown appuser:appuser /app/data
 
 USER appuser
@@ -44,4 +44,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python -c "import httpx; httpx.get('http://localhost:8000/health', timeout=5)" || exit 1
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Render injeta PORT automaticamente - usa variável de ambiente
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
